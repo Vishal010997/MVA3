@@ -1,0 +1,376 @@
+---
+title: "Assignment 3"
+output: html_document
+date: "2024-02-23"
+---
+```{r}
+options(scipen=999)
+library(readr) # Library to read CSV file
+library(ggplot2)
+# Load necessary libraries
+library(ggplot2)
+library(ggcorrplot)
+library(caret)
+library(scatterplot3d)
+library(SciViews)
+library(car)
+library(lattice)
+library(GGally)
+# load packages
+library(lattice)
+library(ggplot2)
+
+
+library(ggridges)
+library(ggvis)
+library(ggthemes)
+library(cowplot)
+library(gapminder)
+library(gganimate)
+library(dplyr)
+library(tidyverse)
+```
+```{R}
+# Read the CSV file
+df <- read_csv("C:/Rutgers/Subjects/Spring Sem/Multivariate Analysis/Data/wine.csv")
+```
+Scale fucntion is used to have a mean of 0 and a standard deviation of 1 
+Center= False: mean is not subtracted from the data before scaling.
+dist is used to find eucludian distance between rows of scaled data
+
+Operation is being performed on matrix prepared on first 15 rows yeilidng rounded values
+
+as.dist: This converts the selected matrix back into a "dist" object. This conversion is necessary if you want to retain the properties of a distance object
+
+Observation:
+Distance between data point at 4th row and 3rd row is very high indicating high difference based on feature values
+by evaluating distance we can seggregate nature of features based on high and low distance
+
+Distance is calculated based on multidimensional distance of varaibles used, multidimensional. Number of dimensions is based on the number of attributes selected "fixed acidity", "alcohol", "volatile acidity"
+
+From the multidimensional distance stored resultant is calculated.
+```{r}
+
+
+x <- dist(scale(df[, c("fixed acidity", "alcohol", "volatile acidity")],
+                center = FALSE))
+
+as.dist(round(as.matrix(x), 2)[1:15, 1:15])
+
+
+```
+```{R}
+
+x <- dist(scale(df[, c("fixed acidity", "alcohol", "volatile acidity")],
+                center = FALSE))
+
+Y<- as.dist(round(as.matrix(x), 2)[1:1200, 1:1200])
+
+```
+
+
+```{r}
+
+x <- df[, c("fixed acidity", "alcohol", "volatile acidity")]
+x
+
+```
+multivariate outlier detection analysis using Mahalanobis distance. Let's break down each part of the code:
+
+Col Means: calculate the mean value of each column
+```{R}
+
+cm <- colMeans(x)
+cm
+```
+Calaculates the covariance of each column and the covariance matrix provides information about how the variables in the dataframe vary together.
+
+```{r}
+library(reshape2)
+
+S <- cov(x)
+
+S
+```
+
+Calculation of Mahalanobis disctance for each distance
+MARGIN = 1 specifies that the function should be applied to each row
+
+function(x): takes a row vector x as input and calculates the Mahalanobis distance for that row.
+
+t(x - cm) %*% solve(S) %*% (x - cm): calculates the squared Mahalanobis distance for the row x
+
+x - cm: This subtracts the column means (cm) from the row vector x
+solve(S): This computes the inverse of the covariance matrix S
+
+```{r}
+d <- apply(x, MARGIN = 1, function(x)t(x - cm) %*% solve(S) %*% (x - cm))
+d
+
+```
+Plotting 3 clusters to identify outlier points for 3 attributes,
+
+1. Center cluster is density based and indicating similarity
+
+2. Outer clusters have varying nature and based on distance from      the opposite end, they would display difference in nature.
+
+3. Outermost cluster is not visible w.r.t colours but dark points at outer end are outliers 
+```{r}
+# Perform k-means clustering
+k <- 3  # Assuming you want to cluster into 3 groups
+cluster <- kmeans(d, centers = k)
+
+# Plot clusters
+plot(x, col = cluster$cluster, main = "Cluster Plot")
+
+# Add cluster centers
+points(cluster$centers, col = 1:k, pch = 8, cex = 2)
+```
+QQ plot: This function generates a QQ plot of the distribution of the variable alcohol against the theoretical normal distribution. In a QQ plot, if the points fall approximately along a straight line, it suggests that the data is approximately normally distributed.
+
+QQline: adds a line through the first and third quartiles of the data.
+
+Inference:
+Alcohol attribute seems to be normally distributed at middle of Q-Q Quantile line and deviating at the edges of Sample and Theorotical Quantiles
+
+```{r}
+
+qqnorm(df$alcohol, main = "alcohol")
+qqline(df$alcohol)
+
+```
+Inference: fixed acidity shows high deviation at the edges of Sample and Theorotical Quantiles comparatively indicating a varying nature in the attribute
+```{R}
+
+qqnorm(df$`fixed acidity`, main = "fixed acidity")
+qqline(df$`fixed acidity`)
+
+
+```
+Inference: pH seems to be evenly distibuted indiacinting a bad parameter to use for future analysis. As we cannot differnetiate if wine is good or bad based on pH values
+```{r}
+
+qqnorm(df$pH, main = "pH")
+qqline(df$pH)
+
+
+
+```
+plot to assess the distribution of distances resulting from a clustering operation
+
+sort(d): Sorts the distances in ascending order.
+
+qchisq((1:nrow(x) - 1/2) / nrow(x), df = 3):
+Generates quantiles from a chi-squared distribution with 3 degrees of freedom.
+
+As the distance of data points increase as per the sorted order, it indicates decreasing normality
+```{r}
+
+plot(qchisq((1:nrow(x) - 1/2) / nrow(x), df = 3), sort(d),
+     xlab = expression(paste(chi[3]^2, " Quantile")),
+     ylab = "Ordered distances")
+abline(a = 0, b = 1)
+```
+
+```{R}
+df$quality <- as.factor(df$quality)
+df_new <- df[, 1:11] #selecting first 11 columns
+df_new
+```
+Calculation of Mahalanobis disctance for each distance
+MARGIN = 1 specifies that the function should be applied to each row
+
+function(x): takes a row vector x as input and calculates the Mahalanobis distance for that row.
+
+t(x - cm) %*% solve(S) %*% (x - cm): calculates the squared Mahalanobis distance for the row x
+
+x - cm: This subtracts the column means (cm) from the row vector x
+solve(S): This computes the inverse of the covariance matrix S
+```{r}
+df_cm <- colMeans(df_new)
+df_S <- cov(df_new)
+df_d <- apply(df_new, MARGIN = 1, function(df_new)t(df_new - df_cm) %*% solve(df_S) %*% (df_new - df_cm))
+df_cm #means of all the column
+df_S # covarience against each other
+df_d #mahanlobis distance obtained
+```
+Let's perform DBSCAN to detect outliers in data.
+We can observe data points in green traingle and circle as outliers
+red are normal data points.
+```{r}
+library(fpc)
+
+# Prepare the data (if not already prepared)
+df_cm <- colMeans(df_new)
+df_S <- cov(df_new)
+df_d <- apply(df_new, MARGIN = 1, function(df_new) t(df_new - df_cm) %*% solve(df_S) %*% (df_new - df_cm))
+
+# DBSCAN
+dbscan_result <- dbscan(df_d, eps = 0.5, MinPts = 5)
+
+# Summary of DBSCAN result
+summary(dbscan_result)
+
+# Plot clusters
+plot(dbscan_result, df_d)
+```
+Goal is to find t value and p-value
+
+t-value is 19.292, indicating a large difference between the means of the two groups (Varialbes used: alcohol and compared with quality, target variable which is either good or bad)
+
+p-values is very low indicating strong correlation of quality of wine with respect to alcohol level in wine.
+
+hence we have seem to have map good relation based on t and p values
+
+Confidence interval is 95 indicating difference present between interval 0.83 and 1.022
+```{R}
+with(data=df,t.test(alcohol[quality=="good"],alcohol[quality=="bad"],var.equal=TRUE))
+
+```
+Attributes used for Two sample t-test
+
+t-value is -13.566, indicating a substantial difference between the means of the two groups.
+
+ p-value is extremely low (< 0.00000000000000022), suggesting strong evidence against the null hypothesis. This means there is a significant difference in the mean volatile acidity between the "good" and "bad" quality groups.
+ 
+  95% confidence interval for the difference in means is (-0.13203601, -0.09867697). This interval suggests that the mean volatile acidity for the "good" quality group is expected to be between 0.13203601 and 0.09867697 units lower than the mean volatile acidity 
+  
+Overall, this output indicates a statistically significant difference in the mean volatile acidity between wines of "good" and "bad" quality, with "good" quality wines having, on average, lower volatile acidity compared to "bad" quality wines.
+```{R}
+with(data=df,t.test(`volatile acidity`[quality=="good"],`volatile acidity`[quality=="bad"],var.equal=TRUE))
+
+```
+
+
+t-value is -4.4021, indicating a notable but not very high difference between the means of the two groups.
+Hence not as good as previous two variables
+
+ p-value is 0.00001143, which is less than the significance level (usually 0.05), indicating strong evidence against the null hypothesis. This means there is a significant difference in the mean chlorides content between the "good" and "bad" quality groups.
+ 
+Overall, this output indicates a statistically significant difference in the mean chlorides content between wines of "good" and "bad" quality, with "good" quality wines having, on average, lower chlorides content compared to "bad" quality wines.
+
+```{R}
+with(data=df,t.test(chlorides[quality=="good"],chlorides[quality=="bad"],var.equal=TRUE))
+
+```
+t-value is -0.13044, indicating a very small difference between the means of the two groups. Hence not good to understand the dependent variable using pH as independent variable as it reveals no information.
+ 
+  p-value is 0.8962, which is much greater than the significance level (usually 0.05), indicating weak evidence against the null hypothesis. This means there is no significant difference in the mean pH levels between the "good" and "bad" quality groups.
+  
+Comparing to the previous values, in this case, there is no significant difference in the mean pH levels between wines of "good" and "bad" quality. The t-value is close to zero, the p-value is high, and the confidence interval includes zero, indicating that any observed difference in mean pH levels between the two groups is likely due to random chance.
+
+ 
+```{R}
+
+with(data=df,t.test(pH[quality=="good"],pH[quality=="bad"],var.equal=TRUE))
+```
+ 
+
+
+```{r}
+
+library(Hotelling)
+```
+
+Hotelling's test: This is a multivariate statistical test used to compare the means of two groups when you have multiple dependent variables. It's an extension of the two-sample t-test to the case of more than one variable.
+
+T2 statistic is 672.9305. This value represents the multivariate distance between the means of the groups. A higher T2 statistic indicates a greater separation between the groups in the multivariate space.   
+```{r}
+
+t2testsparr <- hotelling.test(`fixed acidity` + `volatile acidity` + `citric acid` + `residual sugar` + chlorides + `free sulfur dioxide` + `total sulfur dioxide` + density + pH + sulphates + alcohol ~ quality, data=df)
+# Output of the function hotelling.test is given
+cat("T2 statistic =",t2testsparr$stat[[1]],"\n")
+```
+
+value of the test statistic is 672.93. This represents the multivariate distance between the means of the groups.
+
+The numerator degrees of freedom is 11. This is the number of variables in your data.
+
+he p-value associated with the test statistic is 0. This indicates that the observed difference between the group means is statistically significant at any reasonable significance level
+
+Given the low p-value, you would reject the null hypothesis of equal group means. This suggests that there is a statistically significant difference between the group means in the multivariate space.
+```{R}
+print(t2testsparr)
+```
+
+
+
+
+The F-statistic of approximately 2.1294, accompanied by a small p-value (< 0.00000000000000022) and a 95% confidence interval for the ratio of variances (1.852111 to 2.446455), suggests strong evidence against the null hypothesis that the variances of alcohol levels between the "good" and "bad" quality groups are equal. Therefore, we infer that there is a statistically significant difference in the variability of alcohol levels between these two quality groups in the dataset.
+```{r}
+
+var.test(df$alcohol[df$quality=="good"],df$alcohol[df$quality=="bad"])
+attach(df)
+```
+Scaling data again to improve score of f and p value
+```{R}
+matstand <- scale(df[,1:11]) # Scaling data again to improve score of f and p value
+matstand
+
+```
+
+The subset of data represented by matsurv contains standardized values of three chemical properties (fixed acidity, volatile acidity, citric acid) for wines categorized as "good" quality. Each row represents a different wine sample.
+```{r}
+matsurv <- matstand[quality == "good",]
+matsurv
+
+```
+The variance of alcohol content significantly differs between wines of "good" quality and those of "bad" quality. This is supported by the calculated F-statistic of approximately 2.1294 and the associated p-value, which is virtually zero. The confidence interval for the ratio of variances (1.852 to 2.446) further confirms this difference.
+
+```{R}
+var.test(alcohol[quality=="good"],alcohol[quality=="bad"])
+```
+
+```{r}
+matnosurv <- matstand[quality == "bad",]
+vecmediansurv <- apply(matsurv, 2, median)
+# in the above 2 represents column. Hence, we are asking for column median
+vecmediansurv
+```
+Fixed Acidity: The median fixed acidity is slightly below the mean value.
+Volatile Acidity: The median volatile acidity is moderately negative, indicating a lower level compared to the mean.
+Citric Acid: The median citric acid content is positive, suggesting a higher concentration compared to the mean.
+Residual Sugar: The median residual sugar content is negative, indicating a lower level compared to the mean.
+Chlorides: The median chloride content is negative, suggesting a lower concentration compared to the mean.
+Free Sulfur Dioxide: The median free sulfur dioxide level is negative, indicating a lower concentration compared to the mean.
+Total Sulfur Dioxide: The median total sulfur dioxide level is moderately negative, suggesting a lower concentration compared to the mean.
+Density: The median density is negative, indicating a lower value compared to the mean.
+pH: The median pH value is close to zero, suggesting it is around the mean level.
+Sulphates: The median sulphates content is positive, indicating a higher concentration compared to the mean.
+Alcohol: The median alcohol content is positive, suggesting a higher concentration compared to the mean.
+```{r}
+vecmediannosurv <- apply(matnosurv, 2, median)
+matabsdevsurv <- abs(matsurv - matrix(rep(vecmediansurv,nrow(matsurv)),nrow=nrow(matsurv), byrow=TRUE))
+
+matabsdevnosurv <- abs(matnosurv - matrix(rep(vecmediannosurv,nrow(matnosurv)),nrow=nrow(matnosurv), byrow=TRUE))
+
+matabsdevnosurv
+
+```
+
+
+```{R}
+
+matabsdev.all <- rbind(matabsdevsurv,matabsdevnosurv)
+matabsdev.all <- data.frame(quality, matabsdev.all)
+
+t.test(matabsdev.all$alcohol[quality == "good"],matabsdev.all$alcohol[quality == "bad"], alternative="less",var.equal = TRUE)
+
+```
+The calculated t-value of approximately -0.35819 suggests that the difference in means of the absolute deviations of alcohol content between wines categorized as "good" quality and "bad" quality is relatively small.
+
+The alternative hypothesis states that the true difference in means is less than 0.
+
+Based on the results of the one-sided t-test, with a significance level of 0.05, there is insufficient evidence to reject the null hypothesis. Therefore, we cannot conclude that the absolute deviations of alcohol content between wines categorized as "good" quality and "bad" quality are significantly different.
+```{r}
+
+t.test(matabsdev.all$fixed.acidity[quality == "good"],matabsdev.all$fixed.acidity[quality == "bad"], alternative="less",var.equal = TRUE)
+```
+
+```{r}
+
+matstand
+
+```
+
+
